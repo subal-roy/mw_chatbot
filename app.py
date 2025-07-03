@@ -7,6 +7,9 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import time
+import nltk
+from langchain_community.retrievers import BM25Retriever
+from langchain.retrievers.ensemble import EnsembleRetriever
 
 from data_processor import process_data
 
@@ -41,7 +44,7 @@ def get_conversational_chain():
     return chain
 
 
-def user_input(user_question):
+def user_input(user_question, texts=None, metadatas=None):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 
     st.session_state.messages.append({"role": "user", "content": user_question})
@@ -54,17 +57,26 @@ def user_input(user_question):
 
         try:
             # Load FAISS index
-            new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-            docs_with_scores = new_db.similarity_search_with_score(user_question, k=10)
+            vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
             
-            #print doc
-            for doc in docs_with_scores:
-                print("\n\n=================================Doc=====================\n")
-                print(doc)
-            
+            faiss_retriever = vector_store.as_retriever(search_kwargs={"k":10})
 
-            docs = [doc for doc, score in docs_with_scores if score < 0.9]
-            top_docs = docs[:3]
+            if texts is None or metadatas is None:
+                print("Extracting texts from FAISS for BM25...")
+                all_docs = vector_store.similarity_search("a", k=1000)
+                texts = [doc.page_content for doc in all_docs]
+                metadatas = [doc.metadata for doc in all_docs]
+
+            bm25_retriever = BM25Retriever.from_texts(texts=texts, metadatas=metadatas)
+            bm25_retriever.k = 10
+
+            hybrid_retriever = EnsembleRetriever(
+                retrievers=[faiss_retriever, bm25_retriever],
+                weights=[0.5, 0.5]
+            )
+
+            docs = hybrid_retriever.get_relevant_documents(user_question)
+            top_docs = docs[:4]
 
             #print top docs
             for doc in top_docs:
@@ -107,12 +119,14 @@ def main():
 
     # Load and process knowledgebase once (on first run only)
     if not os.path.exists("faiss_index"):
-        process_data(pdf_dir=PDF_DIR, index_dir="faiss_index")
+        texts, metadatas = process_data(pdf_dir=PDF_DIR, index_dir="faiss_index")
+    else:
+        texts = metadatas = None
 
     # Get user input
     user_question = st.chat_input("Ask a question about company policies, HR, holidays, etc.")
     if user_question:
-        user_input(user_question)
+        user_input(user_question, texts, metadatas)
 
 if __name__ == "__main__":
     main()

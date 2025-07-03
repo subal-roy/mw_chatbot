@@ -70,6 +70,8 @@ def generate_vector_store(chunks, index_dir):
     vector_store.save_local(index_dir)
     print(f"Saved vector store to {index_dir}")
 
+    return texts, metadatas
+
 def process_data(pdf_dir, index_dir):
     print("Extracting text...")
     docs = extract_text_with_metadata(pdf_dir)
@@ -82,5 +84,5 @@ def process_data(pdf_dir, index_dir):
     print(f"Total chunks created: {len(chunks)}")
 
     print("Generating and saving vector store...")
-    generate_vector_store(chunks, index_dir)
+    return generate_vector_store(chunks, index_dir)
 
