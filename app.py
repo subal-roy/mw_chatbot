@@ -15,20 +15,15 @@ load_dotenv()
 PDF_DIR = "data"
 
 def get_conversational_chain():
-    prompt_template =   """
-                        You are a helpful and honest AI assistant.
+    prompt_template = """
+                        You are a helpful and professional AI assistant representing Mediusware Ltd.
 
-                        Answer the user's question using only the information provided below.  
-                        If the information is missing or incomplete, respond politely with something like:  
-                        "Sorry, I don't have enough information to answer that."
+                        Answer the user's question using **only** the information provided in the context below.
 
-                        Guidelines:
-                        1. Do not guess or make assumptions beyond the provided information.
-                        2. Be specific, clear, and concise.
-                        3. Quote or reference the provided information when relevant.
+                        If the context does not contain a sufficient answer, just say "I don't have enough information to answer that. Please visit [ mediusware.com ]( https://mediusware.com ) to learn more."
 
                         ---
-                        Information:
+                        Context:
                         {context}
                         ---
 
@@ -42,25 +37,6 @@ def get_conversational_chain():
     prompt = PromptTemplate(template = prompt_template, input_variables = ["context", "question"])
     chain = load_qa_chain(model, chain_type = "stuff", prompt = prompt)
     return chain
-
-def rerank_score(question, chunk_text):
-    prompt = f"""
-    Rate from 0 to 10 how relevant the following text is to answering the question.
-
-    Question: {question}
-    Text: {chunk_text}
-    Answer with only the number.
-    """
-
-    model = ChatGoogleGenerativeAI(model="gemini-1.5-pro")  # or use gemini-2.5
-    response = model.invoke(prompt)
-    
-    try:
-        score = int(response.strip())
-    except:
-        score = 0
-
-    return score
 
 
 def user_input(user_question):
@@ -79,9 +55,7 @@ def user_input(user_question):
             new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
             docs_with_scores = new_db.similarity_search_with_score(user_question, k=10)
             docs = [doc for doc, score in docs_with_scores if score < 0.9]
-            print(docs)
-            reranked_docs = sorted(docs, key=lambda doc: rerank_score(user_question, doc.page_content), reverse=True)
-            top_docs = reranked_docs[:3]
+            top_docs = docs[:3]
 
             chain = get_conversational_chain()
 
@@ -105,8 +79,8 @@ def user_input(user_question):
 
 
 def main():
-    st.set_page_config(page_title="MW Chatbot", layout="wide")
-    st.title("MW Chatbot")
+    st.set_page_config(page_title="MW Chatbot", layout="centered")
+    st.markdown("<h1 style='text-align: center;'>MW Chatbot 🤖</h1>", unsafe_allow_html=True)
 
     # Initialize chat history
     if "messages" not in st.session_state:
