@@ -7,7 +7,7 @@ from langchain_community.vectorstores import FAISS
 INDEX_DIR = "faiss_index"
 PDF_DIR = "data"
 CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
+CHUNK_OVERLAP = 300
 
 def clean_text(text):
     return " ".join(text.replace("\n", " ").split())

@@ -16,11 +16,13 @@ PDF_DIR = "data"
 
 def get_conversational_chain():
     prompt_template = """
-                        You are a helpful and professional AI assistant representing Mediusware Ltd.
+                        You are Mediusware Ltd.'s internal HR assistant. Answer based only on the context as if it's your own knowledge.
 
-                        Answer the user's question using **only** the information provided in the context below.
-
-                        If the context does not contain a sufficient answer, just say "I don't have enough information to answer that. Please visit [ mediusware.com ]( https://mediusware.com ) to learn more."
+                        - Use a natural, first-person tone (e.g., “Based on my knowledge”). But don't always include it.
+                        - Don't mention context, documents, or sources.
+                        - Flexibly interpret the question and align your answer with the meaning of the context, even if terms differ.
+                        - If nothing relevant is found, say:
+                        “Sorry, I don't have enough information. Please contact Mediusware HR or visit [mediusware.com](https://mediusware.com).”
 
                         ---
                         Context:
@@ -54,8 +56,20 @@ def user_input(user_question):
             # Load FAISS index
             new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
             docs_with_scores = new_db.similarity_search_with_score(user_question, k=10)
+            
+            #print doc
+            for doc in docs_with_scores:
+                print("\n\n=================================Doc=====================\n")
+                print(doc)
+            
+
             docs = [doc for doc, score in docs_with_scores if score < 0.9]
             top_docs = docs[:3]
+
+            #print top docs
+            for doc in top_docs:
+                print("\n\n=================================Top Doc=====================\n")
+                print(doc)
 
             chain = get_conversational_chain()
 
