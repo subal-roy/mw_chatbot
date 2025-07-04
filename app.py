@@ -10,12 +10,14 @@ import time
 import nltk
 from langchain_community.retrievers import BM25Retriever
 from langchain.retrievers.ensemble import EnsembleRetriever
+import json
 
 from data_processor import process_data
 
 load_dotenv()
 
 PDF_DIR = "data"
+
 
 def get_conversational_chain():
     prompt_template = """
@@ -44,7 +46,7 @@ def get_conversational_chain():
     return chain
 
 
-def user_input(user_question, texts=None, metadatas=None):
+def user_input(user_question):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 
     st.session_state.messages.append({"role": "user", "content": user_question})
@@ -61,11 +63,11 @@ def user_input(user_question, texts=None, metadatas=None):
             
             faiss_retriever = vector_store.as_retriever(search_kwargs={"k":10})
 
-            if texts is None or metadatas is None:
-                print("Extracting texts from FAISS for BM25...")
-                all_docs = vector_store.similarity_search("a", k=1000)
-                texts = [doc.page_content for doc in all_docs]
-                metadatas = [doc.metadata for doc in all_docs]
+            with open(os.path.join("bm25_index", "texts.json"), "r", encoding="utf-8") as f:
+                texts = json.load(f)
+
+            with open(os.path.join("bm25_index", "metadatas.json"), "r", encoding="utf-8") as f:
+                metadatas = json.load(f)
 
             bm25_retriever = BM25Retriever.from_texts(texts=texts, metadatas=metadatas)
             bm25_retriever.k = 10
@@ -119,14 +121,12 @@ def main():
 
     # Load and process knowledgebase once (on first run only)
     if not os.path.exists("faiss_index"):
-        texts, metadatas = process_data(pdf_dir=PDF_DIR, index_dir="faiss_index")
-    else:
-        texts = metadatas = None
+        process_data(pdf_dir=PDF_DIR, index_dir="faiss_index")
 
     # Get user input
     user_question = st.chat_input("Ask a question about company policies, HR, holidays, etc.")
     if user_question:
-        user_input(user_question, texts, metadatas)
+        user_input(user_question)
 
 if __name__ == "__main__":
     main()

@@ -1,10 +1,12 @@
 import os
 import fitz
+import json
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
 
 INDEX_DIR = "faiss_index"
+BM25_INDEX_DIR = "bm25_index"
 PDF_DIR = "data"
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 300
@@ -57,6 +59,14 @@ def split_chunks(documents):
 
     return chunks_with_metadata
 
+def save_bm25_index(texts, metadatas, path=BM25_INDEX_DIR):
+    os.makedirs(path, exist_ok=True)
+    with open(os.path.join(path, "texts.json"), "w", encoding="utf-8") as f:
+        json.dump(texts, f, ensure_ascii=False)
+
+    with open(os.path.join(path, "metadatas.json"), "w", encoding="utf-8") as f:
+        json.dump(metadatas, f, ensure_ascii=False)
+
 def generate_vector_store(chunks, index_dir):
     texts = [item["text"] for item in chunks]
     metadatas = [item["metadata"] for item in chunks]
@@ -70,7 +80,8 @@ def generate_vector_store(chunks, index_dir):
     vector_store.save_local(index_dir)
     print(f"Saved vector store to {index_dir}")
 
-    return texts, metadatas
+    save_bm25_index(texts, metadatas)
+    print(f"Saved BM25 index to {BM25_INDEX_DIR}")
 
 def process_data(pdf_dir, index_dir):
     print("Extracting text...")
