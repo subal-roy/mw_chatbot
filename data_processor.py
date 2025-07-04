@@ -59,31 +59,31 @@ def split_chunks(documents):
 
     return chunks_with_metadata
 
-def save_bm25_index(texts, metadatas, path=BM25_INDEX_DIR):
-    os.makedirs(path, exist_ok=True)
-    with open(os.path.join(path, "texts.json"), "w", encoding="utf-8") as f:
+def save_bm25_index(texts, metadatas, bm25_dir):
+    os.makedirs(bm25_dir, exist_ok=True)
+    with open(os.path.join(bm25_dir, "texts.json"), "w", encoding="utf-8") as f:
         json.dump(texts, f, ensure_ascii=False)
 
-    with open(os.path.join(path, "metadatas.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(bm25_dir, "metadatas.json"), "w", encoding="utf-8") as f:
         json.dump(metadatas, f, ensure_ascii=False)
 
-def generate_vector_store(chunks, index_dir):
+def generate_vector_store(chunks, faiss_dir, bm25_dir):
     texts = [item["text"] for item in chunks]
     metadatas = [item["metadata"] for item in chunks]
 
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     vector_store = FAISS.from_texts(texts=texts, embedding=embeddings, metadatas=metadatas)
     
-    if not os.path.exists(index_dir):
-        os.makedirs(index_dir)
+    if not os.path.exists(faiss_dir):
+        os.makedirs(faiss_dir)
         
-    vector_store.save_local(index_dir)
-    print(f"Saved vector store to {index_dir}")
+    vector_store.save_local(faiss_dir)
+    print(f"Saved vector store to {faiss_dir}")
 
-    save_bm25_index(texts, metadatas)
-    print(f"Saved BM25 index to {BM25_INDEX_DIR}")
+    save_bm25_index(texts, metadatas, bm25_dir)
+    print(f"Saved BM25 index to {bm25_dir}")
 
-def process_data(pdf_dir, index_dir):
+def process_data(pdf_dir, index_dir, bm25_dir):
     print("Extracting text...")
     docs = extract_text_with_metadata(pdf_dir)
 
@@ -95,5 +95,18 @@ def process_data(pdf_dir, index_dir):
     print(f"Total chunks created: {len(chunks)}")
 
     print("Generating and saving vector store...")
-    return generate_vector_store(chunks, index_dir)
+    return generate_vector_store(chunks, index_dir, bm25_dir)
+
+# CLI Support
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate FAISS and BM25 indexes from PDFs")
+    parser.add_argument("--pdf_dir", type=str, default="data", help="Directory with PDF files")
+    parser.add_argument("--faiss_dir", type=str, default="faiss_index", help="Directory to save FAISS index")
+    parser.add_argument("--bm25_dir", type=str, default="bm25_index", help="Directory to save BM25 index")
+
+    args = parser.parse_args()
+    process_data(pdf_dir=args.pdf_dir, index_dir=args.faiss_dir, bm25_dir=args.bm25_dir)
 

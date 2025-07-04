@@ -1,24 +1,13 @@
 import streamlit as st
-import os
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import time
-import nltk
-from langchain_community.retrievers import BM25Retriever
-from langchain.retrievers.ensemble import EnsembleRetriever
-import json
-
-from data_processor import process_data
+from retriever_singleton import get_hybrid_retriever
 
 load_dotenv()
-
-PDF_DIR = "data"
-
-
+      
 def get_conversational_chain():
     prompt_template = """
                         You are Mediusware Ltd.'s internal HR assistant. Answer based only on the context as if it's your own knowledge.
@@ -47,8 +36,6 @@ def get_conversational_chain():
 
 
 def user_input(user_question):
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-
     st.session_state.messages.append({"role": "user", "content": user_question})
 
     with st.chat_message("user"):
@@ -58,24 +45,7 @@ def user_input(user_question):
         message_placeholder = st.empty()
 
         try:
-            # Load FAISS index
-            vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-            
-            faiss_retriever = vector_store.as_retriever(search_kwargs={"k":10})
-
-            with open(os.path.join("bm25_index", "texts.json"), "r", encoding="utf-8") as f:
-                texts = json.load(f)
-
-            with open(os.path.join("bm25_index", "metadatas.json"), "r", encoding="utf-8") as f:
-                metadatas = json.load(f)
-
-            bm25_retriever = BM25Retriever.from_texts(texts=texts, metadatas=metadatas)
-            bm25_retriever.k = 10
-
-            hybrid_retriever = EnsembleRetriever(
-                retrievers=[faiss_retriever, bm25_retriever],
-                weights=[0.5, 0.5]
-            )
+            hybrid_retriever = get_hybrid_retriever()
 
             docs = hybrid_retriever.get_relevant_documents(user_question)
             top_docs = docs[:4]
@@ -118,10 +88,6 @@ def main():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-
-    # Load and process knowledgebase once (on first run only)
-    if not os.path.exists("faiss_index"):
-        process_data(pdf_dir=PDF_DIR, index_dir="faiss_index")
 
     # Get user input
     user_question = st.chat_input("Ask a question about company policies, HR, holidays, etc.")
