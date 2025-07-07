@@ -5,6 +5,13 @@ from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import time
 from retriever_singleton import get_hybrid_retriever
+from search_fallback import google_search
+from langchain.schema import Document
+import os
+import logging
+import asyncio
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
       
@@ -12,7 +19,7 @@ def get_conversational_chain():
     prompt_template = """
                         You are Mediusware Ltd.'s internal HR assistant. Answer based only on the context as if it's your own knowledge.
 
-                        - Use a natural, first-person tone (e.g., “Based on my knowledge”). But don't always include it.
+                        - Use a natural, first-person tone (e.g., “Based on my knowledge”). But don't always include it. Sometimes you may use "We", "Our" -based on the question.
                         - Don't mention context, documents, or sources.
                         - Flexibly interpret the question and align your answer with the meaning of the context, even if terms differ.
                         - If nothing relevant is found, say:
@@ -42,7 +49,13 @@ def user_input(user_question):
         st.markdown(user_question)
 
     with st.chat_message("assistant"):
+        thinking_placeholder = st.empty()
         message_placeholder = st.empty()
+
+        thinking_placeholder.markdown(
+            f"<p style='font-size: 16px; color: gray;'>Thinking...</p>",
+                unsafe_allow_html=True
+            )
 
         try:
             hybrid_retriever = get_hybrid_retriever()
@@ -52,14 +65,36 @@ def user_input(user_question):
 
             #print top docs
             for doc in top_docs:
-                print("\n\n=================================Top Doc=====================\n")
-                print(doc)
+                logger.info(doc)
 
             chain = get_conversational_chain()
 
             response = chain({"input_documents": top_docs, "question": user_question}, return_only_outputs=True)
             assistant_response = response["output_text"]
 
+            fallback_trigger = "Sorry, I don't have enough information"
+
+            if fallback_trigger in assistant_response:
+                logger.info(f"Inside fallback trigger")
+                search_results = google_search(user_question)
+                search_docs = []
+                if search_results:
+                    search_docs = [
+                        Document(
+                            page_content=entry["snippet"],
+                            metadata={"source":entry["link"], "title": entry["title"]}
+                        )
+                        for entry in search_results
+                    ]
+                if search_docs:
+                    logger.info(f"Search docs found: , {search_docs}")
+                    search_response = chain(
+                        {"input_documents": search_docs, "question": user_question},
+                        return_only_outputs=True
+                    )
+                    assistant_response = search_response["output_text"]
+            
+            thinking_placeholder.empty()
             full_response = ""
             for chunk in assistant_response.split():
                 full_response += chunk + " "
