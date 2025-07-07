@@ -10,3 +10,4 @@ PyMuPDF
 rank_bm25 
 nltk
 requests
+cohere

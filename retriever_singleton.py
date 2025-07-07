@@ -22,7 +22,7 @@ def get_hybrid_retriever():
     if _hybrid_retriever is None:
         embeddings = get_embeddings()
         faiss = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization = True)
-        faiss_retriever = faiss.as_retriever(search_kwargs={"k":10})
+        faiss_retriever = faiss.as_retriever(search_kwargs={"k":15})
 
         with open(os.path.join("bm25_index", "texts.json"), "r", encoding="utf-8") as f:
                 texts = json.load(f)
@@ -31,7 +31,7 @@ def get_hybrid_retriever():
             metadatas = json.load(f)
         
         bm25_retriever = BM25Retriever.from_texts(texts=texts, metadatas=metadatas)
-        bm25_retriever.k = 10
+        bm25_retriever.k = 15
 
         _hybrid_retriever = EnsembleRetriever(
             retrievers = [faiss_retriever, bm25_retriever],

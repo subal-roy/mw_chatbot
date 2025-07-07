@@ -11,7 +11,7 @@ API_KEY = os.getenv("GOOGLE_API_KEY")
 SEARCH_ENGINE_ID = os.getenv("SEARCH_ENGINE_ID")
 
 
-def google_search(query, num__results=5):
+def google_search(query, num__results=10):
     logger.info(f"Query:  {query}")
     url = 'https://www.googleapis.com/customsearch/v1'
     params = {

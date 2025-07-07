@@ -9,11 +9,25 @@ from search_fallback import google_search
 from langchain.schema import Document
 import os
 import logging
-import asyncio
+import cohere
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+co = cohere.Client(os.getenv("COHERE_API_KEY"))
+
+def rerank_documents(docs, query, top_k=4):
+    rerank_response = co.rerank(
+        query=query,
+        documents=[doc.page_content for doc in docs],
+        top_n = top_k,
+        model="rerank-english-v3.0"
+    )
+    results = rerank_response.results
+    reranked_docs = [docs[result.index] for result in results]
+    return reranked_docs
+
       
 def get_conversational_chain():
     prompt_template = """
@@ -61,7 +75,8 @@ def user_input(user_question):
             hybrid_retriever = get_hybrid_retriever()
 
             docs = hybrid_retriever.get_relevant_documents(user_question)
-            top_docs = docs[:4]
+            logger.info(docs)
+            top_docs = rerank_documents(docs, user_question, 4)
 
             #print top docs
             for doc in top_docs:
@@ -92,6 +107,7 @@ def user_input(user_question):
                     ]
                 if search_docs:
                     logger.info(f"Search docs found: , {search_docs}")
+                    search_docs = rerank_documents(search_docs, user_question, 4)
                     search_response = chain(
                         {"input_documents": search_docs, "question": user_question},
                         return_only_outputs=True
