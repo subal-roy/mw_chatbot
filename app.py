@@ -75,6 +75,10 @@ def user_input(user_question):
             fallback_trigger = "Sorry, I don't have enough information"
 
             if fallback_trigger in assistant_response:
+                thinking_placeholder.markdown(
+                f"<p style='font-size: 16px; color: gray;'>Searching on the web...</p>",
+                    unsafe_allow_html=True
+                )
                 logger.info(f"Inside fallback trigger")
                 search_results = google_search(user_question)
                 search_docs = []

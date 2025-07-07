@@ -4,3 +4,4 @@ __pycache__
 faiss_index
 bm25_index
 data/
+logs/

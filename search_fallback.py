@@ -1,13 +1,14 @@
 import requests
 from dotenv import load_dotenv
 from logger import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-API_KEY = "AIzaSyD3sD1Dk7fdgnYCCFcYwYm0m4CxsJRbnSM"
-SEARCH_ENGINE_ID = "76440b891a94e44fb"
+API_KEY = os.getenv("GOOGLE_API_KEY")
+SEARCH_ENGINE_ID = os.getenv("SEARCH_ENGINE_ID")
 
 
 def google_search(query, num__results=5):
