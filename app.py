@@ -56,87 +56,66 @@ def get_conversational_chain():
     return chain
 
 
-def user_input(user_question):
-    st.session_state.messages.append({"role": "user", "content": user_question})
+def process_user_input(user_question, indicator_placeholder):
+    try:
+        hybrid_retriever = get_hybrid_retriever()
 
-    with st.chat_message("user"):
-        st.markdown(user_question)
+        docs = hybrid_retriever.get_relevant_documents(user_question)
+        logger.info(docs)
+        top_docs = rerank_documents(docs, user_question, 4)
 
-    with st.chat_message("assistant"):
-        thinking_placeholder = st.empty()
-        message_placeholder = st.empty()
+        #print top docs
+        for doc in top_docs:
+            logger.info(doc)
 
-        thinking_placeholder.markdown(
-            f"<p style='font-size: 16px; color: gray;'>Thinking...</p>",
+        chain = get_conversational_chain()
+
+        response = chain({"input_documents": top_docs, "question": user_question}, return_only_outputs=True)
+        assistant_response = response["output_text"]
+
+        fallback_trigger = "Sorry, I don't have enough information"
+
+        if fallback_trigger in assistant_response:
+            logger.info(f"Inside fallback trigger")
+            indicator_placeholder.markdown(
+                f"<p style='font-size: 16px; color: gray;'>Searching on the web...</p>",
                 unsafe_allow_html=True
             )
-
-        try:
-            hybrid_retriever = get_hybrid_retriever()
-
-            docs = hybrid_retriever.get_relevant_documents(user_question)
-            logger.info(docs)
-            top_docs = rerank_documents(docs, user_question, 4)
-
-            #print top docs
-            for doc in top_docs:
-                logger.info(doc)
-
-            chain = get_conversational_chain()
-
-            response = chain({"input_documents": top_docs, "question": user_question}, return_only_outputs=True)
-            assistant_response = response["output_text"]
-
-            fallback_trigger = "Sorry, I don't have enough information"
-
-            if fallback_trigger in assistant_response:
-                thinking_placeholder.markdown(
-                f"<p style='font-size: 16px; color: gray;'>Searching on the web...</p>",
-                    unsafe_allow_html=True
-                )
-                logger.info(f"Inside fallback trigger")
-                search_results = google_search(user_question)
-                search_docs = []
-                if search_results:
-                    search_docs = [
-                        Document(
-                            page_content=entry["snippet"],
-                            metadata={"source":entry["link"], "title": entry["title"]}
-                        )
-                        for entry in search_results
-                    ]
-                if search_docs:
-                    logger.info(f"Search docs found: , {search_docs}")
-                    search_docs = rerank_documents(search_docs, user_question, 4)
-                    search_response = chain(
-                        {"input_documents": search_docs, "question": user_question},
-                        return_only_outputs=True
+            search_results = google_search(user_question)
+            search_docs = []
+            if search_results:
+                search_docs = [
+                    Document(
+                        page_content=entry["snippet"],
+                         metadata={"source":entry["link"], "title": entry["title"]}
                     )
-                    assistant_response = search_response["output_text"]
+                    for entry in search_results
+                ]
+            if search_docs:
+                logger.info(f"Search docs found: , {search_docs}")
+                search_docs = rerank_documents(search_docs, user_question, 4)
+                search_response = chain(
+                    {"input_documents": search_docs, "question": user_question},
+                    return_only_outputs=True
+                )
+                assistant_response = search_response["output_text"]
+            indicator_placeholder.empty()
             
-            thinking_placeholder.empty()
-            full_response = ""
-            for char  in assistant_response:
-                full_response += char
-                message_placeholder.markdown(full_response )
-                time.sleep(0.01)
+        return assistant_response
 
-        except Exception as e:
-            st.error(f"An error occurred while generating a response: {e}")
-            st.exception(e)
-            full_response = "Sorry, I couldn't generate a response due to an error."
-            st.markdown(full_response)
-
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    except Exception as e:
+        logger.error(f"Error processing user input: {e}")
+        return f"Sorry, I couldn't generate a response due to an error: {str(e)}"
 
 
 def main():
     st.set_page_config(page_title="MW Chatbot", layout="centered")
     st.markdown("<h1 style='text-align: center;'>MW Chatbot 🤖</h1>", unsafe_allow_html=True)
 
-    # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "processing" not in st.session_state:
+        st.session_state.processing = False
 
     # Display chat history
     for message in st.session_state.messages:
@@ -145,8 +124,38 @@ def main():
 
     # Get user input
     user_question = st.chat_input("Ask a question about company policies, HR, holidays, etc.")
-    if user_question:
-        user_input(user_question)
+    if user_question and not st.session_state.processing:
+        st.session_state.processing = True
+        st.session_state.messages.append({"role": "user", "content": user_question})
+        st.rerun()
+    
+    # Process the latest question if processing
+    if st.session_state.processing and st.session_state.messages:
+        latest_message = st.session_state.messages[-1]
+        if latest_message["role"] == "user":
+            with st.chat_message("assistant"):
+                indicator_placeholder = st.empty()
+                message_placeholder = st.empty()
+                indicator_placeholder.markdown(
+                    f"<p style='font-size: 16px; color: gray;'>Thinking...</p>",
+                    unsafe_allow_html=True
+                )
+                assistant_response = process_user_input(latest_message["content"], indicator_placeholder)
+                indicator_placeholder.empty()
+
+                # Stream the response
+                full_response = ""
+                for char  in assistant_response:
+                    full_response += char
+                    message_placeholder.markdown(full_response )
+                    time.sleep(0.01)
+
+                # Append assistant response to messages
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+            # Reset processing flag
+            st.session_state.processing = False
+            st.rerun()
 
 if __name__ == "__main__":
     main()
