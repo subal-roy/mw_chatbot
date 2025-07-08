@@ -116,11 +116,10 @@ def user_input(user_question):
             
             thinking_placeholder.empty()
             full_response = ""
-            for chunk in assistant_response.split():
-                full_response += chunk + " "
-                message_placeholder.markdown(full_response + "▌")
-                time.sleep(0.05)
-            message_placeholder.markdown(full_response)
+            for char  in assistant_response:
+                full_response += char
+                message_placeholder.markdown(full_response )
+                time.sleep(0.01)
 
         except Exception as e:
             st.error(f"An error occurred while generating a response: {e}")
