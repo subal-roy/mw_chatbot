@@ -1,1 +1,3 @@
-GOOGLE_API_KEY="place your api key here"
+GOOGLE_API_KEY="Google api key"
+SEARCH_ENGINE_ID="google CSE search engine id"
+COHERE_API_KEY="cohere api key"
